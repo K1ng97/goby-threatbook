@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X-威胁情报</title>
+  <link rel="stylesheet" href="assets/lib/layui/css/layui.css">
+</head>
+  <div>
+    <table id="ip-table" class="layui-table" lay-even lay-skin="nob">
+      <thead>
+        <tr>
+          <th min-width="40" style="font-size: small;">IP</th>
+          <th min-width="50" style="font-size: small;">地理位置</th>
+          <th min-width="50" style="font-size: small;">运营商</th>
+          <th min-width="50" style="font-size: small;">应用场景</th>
+          <th min-width="50" style="font-size: small;">判定结果</th>
+          <th min-width="50" style="font-size: small;text-align: center;">是否恶意</th>
+          <th min-width="30" style="font-size: small;text-align: center;">是否HW-IP</th>
+        </tr> 
+      </thead>
+      <tbody>
+        <tr>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <script src="assets/js/jquery-3.3.1.min.js"></script>
+  <script src="assets/lib/layui/layui.all.js"></script>
+  
+  <script>
+    
+    console.log('[+] 开始运行威胁情报插件!');
+
+    // 初始化
+    let goby = parent.goby;
+    let config = goby.getConfiguration();
+    let key = config.key.default;
+    let taskId;
+    let ips;
+    let html;
+
+    // 主模块，等待 goby 任务结束事件通知，开始情报查询
+    goby.bindEvent('onEndScan',function(content){
+      console.log('[+] 扫描任务执行结束，开始查询威胁情报！');
+      ips = [];
+      html = "";
+
+      // 获取任务内容，提取公网 IP
+      let id = content["taskId"];
+      if(taskId != id){
+        taskId = id;
+      };
+      goby.getAsset(taskId,function(result){
+        if(result.statusCode == 200){
+          ipsdata = result['data']['ips'];
+          for(let i=0; i<ipsdata.length; i++){
+            if(!IsLAN(ipsdata[i]['ip'])){
+              ips.push(ipsdata[i]['ip']);
+            };
+          };
+        };
+
+        // 获取情报数据
+        for(var i=0; i<ips.length; i++){
+          console.log("[+] 正在查询："+ips[i]);
+          let res_data;
+          sleep(1000);
+          res_data = getData(key,ips[i]);
+          if("response_code" in res_data){
+            // 解析情报
+            if(res_data['response_code'] == 0){
+              html += parseIPdata(res_data,ips[i]);
+              $("#ip-table tbody").html(html);
+            }else if(res_data['response_code'] == -4){
+              alert("当日微步情报接口授权次数已耗尽，详细信息请查看官方链接！\nhttps://x.threatbook.cn/v5/myApi");
+              break;
+            }else{
+              goby.showErrorMessage("[威胁情报]："+res_data['verbose_msg']);
+              break;
+            };
+          }else{
+            goby.showErrorMessage("网络请求出错！\n"+"响应码："+res_data['status']+"\n响应内容："+res_data['response']);
+          };
+        };
+      });
+    });
+
+
+    // 判断是否局域网及保留地址
+    function IsLAN(ip) {
+      ip.toLowerCase();
+      if(ip=='localhost') return true;
+      var a_ip = 0;
+      if(ip == "") return false;
+      var aNum = ip.split("."); 
+      if(aNum.length != 4) return false;
+      a_ip += parseInt(aNum[0]) << 24;
+      a_ip += parseInt(aNum[1]) << 16;
+      a_ip += parseInt(aNum[2]) << 8;
+      a_ip += parseInt(aNum[3]) << 0;
+      a_ip=a_ip>>16 & 0xFFFF;
+      return( a_ip>>8 == 0x7F || a_ip>>8 == 0xA || a_ip== 0xC0A8 || (a_ip>=0xAC10 && a_ip<=0xAC1F) );
+    }
+
+
+    // 获取情报接口数据
+    function getData(key,ip){
+      let url = `https://api.threatbook.cn/v3/scene/ip_reputation?apikey=${key}&resource=${ip}&lang=zh`;
+      let result;
+      $.ajax({
+        url:url,
+        type:'get',
+        async:false,
+        success:function(res){
+          ipdata = res;
+        },
+        error:function(e){
+          result['status'] = e.status;
+          result['response'] = e.responseText;
+        }
+      });
+      return ipdata;
+    }
+
+
+    // 解析情报数据
+    function parseIPdata(res,ip){
+      let html = "";
+      // 解析微步标签
+      let tags = res['data'][ip]['judgments'];
+      let tags_classes = res['data'][ip]['tags_classes'];
+      if(tags_classes){
+        for(var i=0; i<tags_classes.length; i++){
+          tags = tags.concat(tags_classes[i]['tags']);
+        };
+      };
+      html += `<tr>
+          <td>${ip}</td>
+          <td>${res['data'][ip]['basic']['location']['country']+" "+res['data'][ip]['basic']['location']['province']+" "+res['data'][ip]['basic']['location']['city']}</td>
+          <td>${res['data'][ip]['basic']['carrier']}</td>
+          <td>${res['data'][ip]['scene']}</td>
+          <td>${tags}</td>`
+
+      // 判断是否恶意
+      if(res['data'][ip]['is_malicious']){
+          html += `<td style="text-align: center;"><span class="layui-badge">恶意</span></td>`
+      }else{
+          html += `<td style="text-align: center;"><span class="layui-badge layui-bg-gray">非恶意</span></td>`
+      };
+
+      // 判断是否为 HW-IP
+      if(tags.indexOf("重保2021") == -1){
+        html += `<td style="text-align: center;"><span class="layui-badge layui-bg-gray">否</span></td>`
+      }else{
+        html += `<td style="text-align: center;"><span class="layui-badge">你懂的</span></td>`
+      };
+      
+      return html;
+    }
+
+
+    // 延时函数
+    function sleep(time) {
+      var startTime = new Date().getTime() + parseInt(time, 10);
+      while(new Date().getTime() < startTime) {}
+    }
+
+    $(".export-data").on("click", function(){
+      method4("ip-table");
+    });
+
+  </script>
+</body>
+
+</html>
