@@ -1,0 +1,32 @@
+{
+    "name": "ThreatBook",
+    "publisher": "元歌",
+    "description": "自动提取扫描任务中存活的资产IP，通过微步在线 X 社区 API 接口查询威胁情报信息。",
+    "version": "0.1.2",
+    "icon": "src/assets/img/x.ico",
+    "engines": "1.8.230",
+    "initEvents": ["threatbook"],
+    "main": "./src/extension.js",
+    "contributes": {
+        "configuration": {
+            "key": {
+                "type": "string",
+                "default": "",
+                "description": "ThreatBook API Key"
+            }
+        },
+        "views": {
+            "toolbar":[
+                {
+                    "command": "threatbook",
+                    "title": "威胁情报",
+                    "icon": "src/assets/img/x.ico",
+                    "tips": "微步情报接口查询！"
+                }
+            ]
+        }
+    },
+    "scripts": {},
+    "devDependencies": {},
+    "dependencies": {}
+}
