@@ -40,4 +40,4 @@ https://x.threatbook.cn/v5/myApi
 
 
 
-4、Github: [https://github.com/gobysec/GobyExtension/tree/master/samples/Debug](https://github.com/gobysec/GobyExtension/tree/master/samples/Debug)，也可以从 git 上下载插件，手动放入到 /extensions 目录，然后重启 goby。
+4、Github: https://github.com/K1ng97/goby-threatbook，也可以从 git 上下载插件，手动放入到 /extensions 目录，然后重启 goby。
